@@ -1,7 +1,7 @@
 const express = require('express');
 const connectDB = require('./config/db');
 const formData = require('express-form-data');
-
+const cors = require('cors');
 require('colors');
 require('dotenv').config();
 
@@ -17,6 +17,15 @@ const morgan = require('morgan');
 connectDB();
 
 const app = express();
+
+
+const corsOptions = {
+  origin: 'http://localhost:3000', // Update to your frontend's URL when deployed
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 app.use(formData.parse());
 

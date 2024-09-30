@@ -3,6 +3,7 @@ const generateToken = require('../utils/generateToken.js')
 const User = require('../models/userModel.js')
 var crypto = require('crypto');
 var mailer = require('../utils/mailer');
+const bcrypt=require('bcrypt')
 const { generateOtp,verifyOtp } = require('../utils/otp.js');
 
 
@@ -10,72 +11,149 @@ const { generateOtp,verifyOtp } = require('../utils/otp.js');
 // @route   POST /api/users/login
 // @access  Public
 const authUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body
+  const { email, password } = req.body;
 
-  const user = await User.findOne({ email })
+  console.log('Incoming Request:', req.body);
 
-  if (user && (await user.matchPassword(password))) {
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      token: generateToken(user._id),
-      favorites: user.favorites,
-    })
-  } else {
-    res.status(401).json({
-      success: false,
-      msg: 'Unauthorized user'
-    })
+  if (!email || !password) {
+      return res.status(400).json({
+          success: false,
+          msg: 'Please provide both email and password.',
+      });
   }
-})
+
+  const user = await User.findOne({ email });
+  console.log('User found:', user);
+
+  if (!user) {
+      console.warn(`No user found with email: ${email}`);
+      return res.status(401).json({
+          success: false,
+          msg: 'Unauthorized user',
+      });
+  }
+
+  console.log('User found. Checking password...');
+  const isMatch = await user.matchPassword(password);
+  console.log('Password match result:', isMatch);
+
+  if (isMatch) {
+      const responseData = {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+          token: generateToken(user._id),
+          favorites: user.favorites,
+      };
+
+      console.log('Response:', responseData); 
+      return res.json(responseData);
+  }
+
+  console.log(`Unauthorized access attempt for email: ${email}`);
+  return res.status(401).json({
+      success: false,
+      msg: 'Unauthorized user',
+  });
+});
+
+
+
+
 
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
-const registerUser = asyncHandler(async (req, res, next) => {
-  console.log(req.body)
+// const registerUser = asyncHandler(async (req, res, next) => {
+//   console.log(req.body)
 
-  const { name, email, password } = req.body
-  const userExists = await User.findOne({ email })
+//   const { name, email, password } = req.body
+//   const userExists = await User.findOne({ email })
 
-  if (userExists) {
-    return res.status(400).json({
-      success: false,
-      msg: 'Entered email id already registered with us. Login to continue'
-    })
-  }
+//   if (userExists) {
+//     return res.status(400).json({
+//       success: false,
+//       msg: 'Entered email id already registered with us. Login to continue'
+//     })
+//   }
   
 
-  const user = new User({
-    name,
-    email,
-    password,
-  })
+//   const user = new User({
+//     name,
+//     email,
+//     password,
+//   })
 
 
-    // save user object
-    user.save(function (err, user) {
-      if (err) return next(err);
-      res.status(201).json({
-        success: true,
-        msg: 'Account Created Sucessfully. Please log in.'
+//     // save user object
+//     user.save(function (err, user) {
+//       if (err) return next(err);
+//       res.status(201).json({
+//         success: true,
+//         msg: 'Account Created Sucessfully. Please log in.'
+//       });
+//     });
+
+//   // if (user) {
+//   //   res.status(201).json({
+//   //     _id: user._id,
+//   //     name: user.name,
+//   //     email: user.email,
+//   //     token: generateToken(user._id),
+//   //   })
+//   // } else {
+//   //   res.status(400)
+//   //   throw new Error('Invalid user data')
+//   // }
+// })
+const registerUser = asyncHandler(async (req, res) => {
+  console.log('Incoming Request Body:', req.body);
+
+  const { name, email, password } = req.body;
+
+  // Validate required fields
+  if (!name || !email || !password) {
+      return res.status(400).json({
+          success: false,
+          msg: 'Please provide all required fields: name, email, and password.',
       });
-    });
+  }
 
-  // if (user) {
-  //   res.status(201).json({
-  //     _id: user._id,
-  //     name: user.name,
-  //     email: user.email,
-  //     token: generateToken(user._id),
-  //   })
-  // } else {
-  //   res.status(400)
-  //   throw new Error('Invalid user data')
-  // }
-})
+  // Check if the user already exists
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+      return res.status(400).json({
+          success: false,
+          msg: 'Email already registered. Please log in.',
+      });
+  }
+
+  // Create a new user instance
+  const user = new User({
+      name,
+      email,
+      password, // Store the plain password; hashing will be handled in the model
+  });
+
+  try {
+      // Save user object
+      await user.save();
+
+      // Respond with success message
+      res.status(201).json({
+          success: true,
+          msg: 'Account created successfully. Please log in.',
+      });
+  } catch (error) {
+      console.error('Error saving user:', error);
+      res.status(500).json({
+          success: false,
+          msg: 'Error creating user. Please try again.',
+      });
+  }
+});
+;
 
 
 
