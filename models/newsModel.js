@@ -2,19 +2,22 @@ const mongoose = require('mongoose');
 
 const newsSchema = new mongoose.Schema({
     author: {
-        type: String
+        type: String,
     },
     title: {
-        type: String
+        type: String,
+        required: true
     },
     content: {
-        type: String
+        type: String,
+        required: true
     },
     url: {
         type: String
     },
     urlToImage: {
-        type: String
+        type: String,
+        required: true
     },
     category: {
         type: mongoose.Schema.Types.ObjectId,

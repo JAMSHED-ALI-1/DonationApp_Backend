@@ -1,18 +1,18 @@
 const mongoose = require('mongoose');
 
 const donationSchema = mongoose.Schema({
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  address1: { type: String, required: true },
+  firstName: { type: String, },
+  lastName: { type: String, },
+  address1: { type: String,  },
   address2: { type: String },
-  city: { type: String, required: true },
-  state: { type: String, required: true },
-  zip: { type: Number, required: true },
-  email: { type: String, required: true },
-  phone: { type: String, required: true },
+  city: { type: String,  },
+  state: { type: String,  },
+  zip: { type: String,  },
+  email: { type: String,  },
+  phone: { type: String,  },
   donation: [
     {
-      amount: { type: Number, required: true },
+      amount: { type: String, required:true},
     },
   ],
   user: {
@@ -20,6 +20,8 @@ const donationSchema = mongoose.Schema({
     ref: 'User', // Reference the User model
     required: true,
   },
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Donation', donationSchema);

@@ -8,8 +8,8 @@ require('dotenv').config();
 const userRoutes = require('./routes/userRoutes.js');
 const newsRoutes = require('./routes/newsRoute.js');
 const categoryRoutes = require('./routes/categoryRoute');
-
-
+const donationRoute = require('./routes/DonationRoute');
+const campaignRoutes = require('./routes/campaignRoutes');
 const morgan = require('morgan');
 
 
@@ -43,7 +43,8 @@ app.use(express.urlencoded({extended: false}));
 app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/category', categoryRoutes);
-
+app.use('/api/donations', donationRoute);
+app.use('/api/campaigns', campaignRoutes);
 app.get('*', function(req, res){
   res.status(404).json({
     msg: "Api path not found."
