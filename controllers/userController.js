@@ -273,7 +273,7 @@ const resetPassword = asyncHandler(async(req,res) => {
   // console.log(verifyOtp(req.body.token));
   console.log(req.body.token)
   res.json({
-    token: verifyOtp(req.body.token)
+    // token: verifyOtp(req.body.token)
   })
   // const user = await User.findById(req.user._id)
   // const {oldPassword = ''} = req.body;

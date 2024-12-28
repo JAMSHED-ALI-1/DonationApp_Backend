@@ -1,27 +1,29 @@
 const mongoose = require('mongoose');
 
-const CompainSchema = new mongoose.Schema({
+const CampaignSchema = new mongoose.Schema({
     author: {
         type: String,
+        // required: true
     },
     title: {
         type: String,
-        required: true
+        // required: true
     },
     content: {
         type: String,
-        required: true
+        // required: true
     },
     url: {
         type: String
     },
-    urlToImage: {
+    image_url: {
         type: String,
-        required: true
+        // required: true
     },
     category: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Category'
+        ref: 'Category',
+        // required: true  // Ensures category is always provided
     },
     views: {
         type: Number,
@@ -38,7 +40,8 @@ const CompainSchema = new mongoose.Schema({
         comment: String
     }],
     like: {
-        type: Number
+        type: Number,
+        default: 0
     },
     addToSlider: {
         type: Boolean,
@@ -46,55 +49,61 @@ const CompainSchema = new mongoose.Schema({
     },
     addedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        // required: true  // Ensures addedBy is always provided
     },
     notifyUser: {
         type: Boolean,
         default: false
     },
     addedAt: {
-        type: Date
+        type: Date,
+        default: Date.now  // Default to the current date
     },
     updatedAt: {
         type: Date,
-        default: Date.now()
+        default: Date.now
     },
 
     // New fields for Donation/Fundraising feature
     donationGoal: {
-        type: Number,  // Represents the donation goal, e.g., $10,000
-        required: true
+        type: Number,
+        // required: true
     },
     donationReceived: {
-        type: Number,  // Total amount of donations received
+        type: Number,
         default: 0
     },
     donationCurrency: {
-        type: String,  // e.g., USD, EUR
+        type: String,
         default: 'USD'
     },
     fundRaisingStartDate: {
-        type: Date,  // The date when the fundraising starts
-        required: true
+        type: String,
+        // required: true
     },
     fundRaisingEndDate: {
-        type: Date,  // The date when the fundraising ends
-        required: true
+        type: String,
+        // required: true
     },
+    created_at: { type: Date, default: Date.now },
     donors: [{
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
         },
         amount: {
-            type: Number,  // Amount donated by the user
-            required: true
+            type: Number,
+            // required: true
         },
         donatedAt: {
             type: Date,
             default: Date.now
         }
     }]
+}, {
+    // timestamps: true  // Automatically adds createdAt and updatedAt fields
 });
 
-module.exports = mongoose.model('Campaign', CompainSchema);
+// Export the model
+module.exports = mongoose.model('Campaign', CampaignSchema);

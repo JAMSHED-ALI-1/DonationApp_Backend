@@ -1,203 +1,320 @@
 const asyncHandler = require("express-async-handler");
 const Campaign = require("../models/campaignModel");
-const Donation = require("../models/Donation");
 const User = require("../models/userModel");
-const Category = require("../models/categoryModel");
-const imageToBase64 = require("image-to-base64");
-const moment = require("moment");
+const cloudinary = require('../utils/cloudnary');
+const Image = require('../models/Image');
+const fs = require('fs').promises;
 
-// Create a new campaign
+// Create a new campaign with image upload
+
+
+// Create a new campaign with image upload
 const AddCampaign = asyncHandler(async (req, res) => {
-    const { author, title, content, url, urlToImage, category, fundRaisingStartDate, fundRaisingEndDate, donationGoal } = req.body;
+  try {
+    // Check if request contains a file
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an image'
+      });
+    }
 
-    const newCampaign = new Campaign({
-        author,
-        title,
-        content,
-        url,
-        urlToImage,
-        category,
-        fundRaisingStartDate,
-        fundRaisingEndDate,
-        donationGoal
+    // Validate other required fields
+    const {
+      author,
+      title,
+      content,
+      category,
+      fundRaisingStartDate,
+      fundRaisingEndDate,
+      donationGoal
+    } = req.body;
+
+    if (!author || !title || !content || !category || 
+        !fundRaisingStartDate || !fundRaisingEndDate || !donationGoal) {
+      // Clean up uploaded file if validation fails
+      await fs.unlink(req.file.path);
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Upload image to cloudinary
+    const cloudinaryResponse = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'campaigns',
+      resource_type: 'auto',
     });
 
-    const savedCampaign = await newCampaign.save();
-    res.status(201).json(savedCampaign);
+    const image = new Image({
+      image_url: cloudinaryResponse.secure_url,
+      author,
+      title,
+      content,
+      category,
+      fundRaisingStartDate: new Date(fundRaisingStartDate),
+      fundRaisingEndDate: new Date(fundRaisingEndDate),
+      donationGoal: Number(donationGoal),
+    });
+    await image.save();
+
+    // Clean up uploaded file
+    await fs.unlink(req.file.path);
+
+    res.status(201).json({
+      success: true,
+      message: 'Campaign created successfully',
+      data: campaign
+    });
+
+  } catch (error) {
+    // Clean up uploaded file if something goes wrong
+    if (req.file) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
+
+    console.error('Campaign creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating campaign',
+      error: error.message
+    });
+  }
 });
 
 // Get campaign by ID
 const GetCampaignById = asyncHandler(async (req, res) => {
+  try {
     const campaign = await Campaign.findById(req.params.id)
-        .populate('category')
-        .populate('donors.user');
+      .populate('category')
+      .populate('donors.user', 'name email');
 
     if (!campaign) {
-        res.status(404).json({ message: "Campaign not found" });
-        return;
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
     }
-    res.status(200).json(campaign);
+
+    res.status(200).json({
+      success: true,
+      data: campaign
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching campaign",
+      error: error.message
+    });
+  }
 });
 
 // Donate to a campaign
-// const DonateToCampaign = asyncHandler(async (req, res) => {
-//   const { userId, amount } = req.body;  // amount could be a string like "1500+2500"
-//   const campaign = await Campaign.findById(req.params.id);
-
-//   if (!campaign) {
-//       return res.status(404).json({ message: "Campaign not found" });
-//   }
-
-//   // Check if the fundraising period has ended
-//   if (campaign.fundRaisingEndDate < Date.now()) {
-//       return res.status(400).json({ message: "Fundraising for this campaign has ended" });
-//   }
-
-//   // If amount is in the format "1500+2500", split it, convert to numbers and sum
-//   const totalDonation = amount.split('+').reduce((sum, value) => sum + parseFloat(value), 0);
-
-//   // Update the donation amount received and add the donor info
-//   campaign.donationReceived += totalDonation;
-//   campaign.donors.push({
-//       user: userId,
-//       amount: totalDonation,  // Save the summed donation
-//       donatedAt: new Date()
-//   });
-
-//   // Save the updated campaign
-//   const updatedCampaign = await campaign.save();
-//   res.status(200).json({ message: "Donation successful", campaign: updatedCampaign });
-// });
 const DonateToCampaign = asyncHandler(async (req, res) => {
-    const { userId, amount } = req.body;  // amount could be a string like "1500+2500"
+  try {
+    const { userId, amount } = req.body;
     
-    // Fetch the campaign based on the ID from the request parameters
+    if (!userId || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID and donation amount are required"
+      });
+    }
+
     const campaign = await Campaign.findById(req.params.id);
-    
     if (!campaign) {
-      return res.status(404).json({ message: "Campaign not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
     }
-  
-    // Check if the fundraising period has ended
+
     if (campaign.fundRaisingEndDate < Date.now()) {
-      return res.status(400).json({ message: "Fundraising for this campaign has ended" });
+      return res.status(400).json({
+        success: false,
+        message: "Fundraising for this campaign has ended"
+      });
     }
-  
-    // Fetch user details using the userId
+
     const user = await User.findById(userId);
-    
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
     }
-  
-    // If amount is in the format "1500+2500", split it, convert to numbers, and sum
-    const totalDonation = amount.split('+').reduce((sum, value) => sum + parseFloat(value), 0);
-  
-    // Update the donation amount received and add the donor info
+
+    // Calculate total donation from multiple amounts
+    const totalDonation = amount.toString()
+      .split('+')
+      .reduce((sum, value) => sum + parseFloat(value.trim()), 0);
+
+    if (isNaN(totalDonation) || totalDonation <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid donation amount"
+      });
+    }
+
+    // Update campaign
     campaign.donationReceived += totalDonation;
     campaign.donors.push({
       user: userId,
-      name: user.name,  // Adding user's name
-      email: user.email,  // Adding user's email
-      amount: totalDonation,  // Save the summed donation
+      amount: totalDonation,
       donatedAt: new Date()
     });
-  
-    // Save the updated campaign
-    const updatedCampaign = await campaign.save();
-  
-    // Return success message and updated campaign details
-    res.status(200).json({ 
-      message: "Donation successful", 
-      campaign: updatedCampaign, 
-      donor: {
-        name: user.name,
-        email: user.email
+
+    await campaign.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Donation successful",
+      data: {
+        campaignId: campaign._id,
+        donationAmount: totalDonation,
+        donor: {
+          name: user.name,
+          email: user.email
+        },
+        currentTotal: campaign.donationReceived
       }
     });
-  });
-  
-//get Api Donatte Compain
-const GetCampaignDonations = asyncHandler(async (req, res) => {
-    // Fetch the campaign based on the ID from the request parameters
-    const campaign = await Campaign.findById(req.params.id);
-  
-    if (!campaign) {
-      return res.status(404).json({ message: "Campaign not found" });
-    }
-  
-    // Retrieve the donations (donors array)
-    const donations = await Promise.all(
-      campaign.donors.map(async (donor) => {
-        const user = await User.findById(donor.user);
-  
-        if (!user) {
-          return { 
-            user: donor.user, 
-            amount: donor.amount, 
-            donatedAt: donor.donatedAt, 
-            name: "User not found", 
-            email: "User not found" 
-          };
-        }
-  
-        return {
-          userId: donor.user,
-          name: user.name,  // Get the name from the User model
-          email: user.email,  // Get the email from the User model
-          amount: donor.amount,
-          donatedAt: donor.donatedAt
-        };
-      })
-    );
-  
-    // Return the donations as the response
-    res.status(200).json({
-      message: "Donations retrieved successfully",
-      campaignName: campaign.name,  // Optional: campaign name
-      donations
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Donation failed",
+      error: error.message
     });
-  });
-  
+  }
+});
 
+// Get campaign donations
+const GetCampaignDonations = asyncHandler(async (req, res) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id)
+      .populate('donors.user', 'name email');
 
-// Convert image URL to Base64
-const ConvertImageToBase64 = asyncHandler(async (req, res) => {
-    const { imageUrl } = req.body;
-
-    try {
-        const base64Image = await imageToBase64(imageUrl);
-        res.status(200).json({ base64Image });
-    } catch (error) {
-        res.status(500).json({ message: "Error converting image", error: error.message });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
     }
+
+    const donations = campaign.donors.map(donor => ({
+      userId: donor.user._id,
+      name: donor.user.name,
+      email: donor.user.email,
+      amount: donor.amount,
+      donatedAt: donor.donatedAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        campaignName: campaign.title,
+        totalDonations: campaign.donationReceived,
+        donationsCount: donations.length,
+        donations
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching donations",
+      error: error.message
+    });
+  }
 });
 
 // Get all campaigns
 const GetAllCampaigns = asyncHandler(async (req, res) => {
-    const campaigns = await Campaign.find().populate('category').sort({ addedAt: -1 });
-    res.status(200).json(campaigns);
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      category, 
+      status,
+      sort = '-addedAt' 
+    } = req.query;
+
+    const query = {};
+    if (category) query.category = category;
+    if (status) {
+      const now = new Date();
+      switch (status) {
+        case 'active':
+          query.fundRaisingEndDate = { $gt: now };
+          break;
+        case 'ended':
+          query.fundRaisingEndDate = { $lte: now };
+          break;
+      }
+    }
+
+    const campaigns = await Campaign.find(query)
+      .populate('category')
+      .sort(sort)
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Campaign.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        campaigns,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalCampaigns: total
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching campaigns",
+      error: error.message
+    });
+  }
 });
 
 // Delete campaign
 const DeleteCampaign = asyncHandler(async (req, res) => {
-    const deletedCampaign = await Campaign.findByIdAndDelete(req.params.id);
-
-    if (!deletedCampaign) {
-        res.status(404).json({ message: "Campaign not found" });
-        return;
+  try {
+    const campaign = await Campaign.findById(req.params.id);
+    
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
     }
 
-    res.status(200).json({ message: "Campaign deleted successfully" });
+    // Delete image from cloudinary if exists
+    if (campaign.imagePublicId) {
+      await cloudinary.uploader.destroy(campaign.imagePublicId);
+    }
+
+    await Campaign.deleteOne({ _id: req.params.id });
+
+    res.status(200).json({
+      success: true,
+      message: "Campaign deleted successfully"
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error deleting campaign",
+      error: error.message
+    });
+  }
 });
 
-// Export all the controller functions
 module.exports = {
-    AddCampaign,
-    GetCampaignById,
-    DonateToCampaign,
-    ConvertImageToBase64,
-    GetAllCampaigns,
-    DeleteCampaign,
-    // GetCampaignDonations,
+  AddCampaign,
+  GetCampaignById,
+  DonateToCampaign,
+  GetAllCampaigns,
+  DeleteCampaign,
+  GetCampaignDonations
 };
